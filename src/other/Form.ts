@@ -7,7 +7,7 @@ export class Form {
 
 	private inputs: HTMLLabelElement[] = []
 	private mountedForm: HTMLDivElement | null = null
-	private root = document.documentElement
+	private root = document.querySelector('#app') as Element
 
 	constructor(
 		title: string,
@@ -41,16 +41,53 @@ export class Form {
 		this.inputs.push(labelElement)
 	}
 
+	addSelect(
+		title: string,
+		name: string,
+		options: {
+			title: string
+			value: string
+		}[],
+		defaultValue?: string
+	) {
+		const labelElement = document.createElement('label')
+		labelElement.className = 'flex justify-between items-center gap-x-2'
+
+		const labelTextNode = document.createTextNode(title)
+		labelElement.appendChild(labelTextNode)
+
+		const select = document.createElement('select')
+		select.className = 'p-1 border rounded'
+		select.name = name
+
+		const optionsElement = options.map(option => {
+			const optionElement = document.createElement('option')
+
+			optionElement.textContent = option.title
+			optionElement.value = option.value
+
+			return optionElement
+		})
+
+		select.append(...optionsElement)
+
+		if (defaultValue) select.value = defaultValue
+
+		labelElement.appendChild(select)
+		this.inputs.push(labelElement)
+	}
+
 	mount() {
 		const wrapper = document.createElement('div')
+		wrapper.className = `absolute left-0 w-full h-full top-[${document.documentElement.scrollTop}px]`
+		document.body.style.overflow = 'hidden'
 
 		const content = document.createElement('div')
 		content.className =
-			'm-0 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px]'
+			'm-0 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2'
 
 		const backdrop = document.createElement('div')
-		backdrop.className =
-			'absolute top-0 left-0 w-full h-full bg-slate-500 opacity-40'
+		backdrop.className = `absolute left-0 w-full h-full bg-slate-500 opacity-40`
 
 		backdrop.onclick = () => this.onClose()
 
@@ -100,5 +137,6 @@ export class Form {
 
 	umount() {
 		this.mountedForm?.remove()
+		document.body.style.overflow = 'auto'
 	}
 }

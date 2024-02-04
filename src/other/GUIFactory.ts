@@ -3,6 +3,6 @@ import { BaseManager } from '../classes/BaseManager'
 export interface GUIFactory<T> {
 	createOpenFormButton(): string | Node
 	getSearchForRender(): HTMLFormElement
-	getTableForRender(): HTMLTableElement
+	getTableForRender(): HTMLElement
 	getManager(): BaseManager<T>
 }

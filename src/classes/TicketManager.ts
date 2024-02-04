@@ -8,6 +8,7 @@ export class TicketManager implements BaseManager<Ticket> {
 	initializeFromStorage(
 		storage: StorageType<
 			{
+				id: string
 				passenger: string
 				flight: string
 				position: string
@@ -18,16 +19,13 @@ export class TicketManager implements BaseManager<Ticket> {
 
 		if (!itemsFromStorage) return
 
-		let id = 0
-
 		this.items = itemsFromStorage.map(item => {
 			const newItem = new Ticket(
-				String(id),
+				item.id,
 				item.passenger,
 				item.flight,
 				item.position
 			)
-			id++
 
 			return newItem
 		})

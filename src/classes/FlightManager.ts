@@ -8,6 +8,7 @@ export class FlightManager implements BaseManager<Flight> {
 	initializeFromStorage(
 		storage: StorageType<
 			{
+				id: string
 				fromCity: string
 				destination: string
 				startDate: string
@@ -21,11 +22,9 @@ export class FlightManager implements BaseManager<Flight> {
 
 		if (!itemsFromStorage) return
 
-		let id = 0
-
 		this.items = itemsFromStorage.map(item => {
 			const newItem = new Flight(
-				String(id),
+				item.id,
 				item.fromCity,
 				item.destination,
 				new Date(item.startDate),
@@ -33,8 +32,6 @@ export class FlightManager implements BaseManager<Flight> {
 				Number(item.price),
 				Number(item.seatsCount)
 			)
-
-			id++
 
 			return newItem
 		})

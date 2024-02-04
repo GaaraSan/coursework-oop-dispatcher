@@ -1,21 +1,28 @@
 import { Flight } from '../classes/Flight'
 import { FlightManager } from '../classes/FlightManager'
+import { TicketManager } from '../classes/TicketManager'
 import { FlightStorage } from '../utils/FlightStorage'
+import { TicketStorage } from '../utils/TicketStorage'
 import { Button } from './Button'
 import { Form } from './Form'
 import { GUIFactory } from './GUIFactory'
 import { Search } from './Search'
-import { Table } from './Table'
+import { Table, TableItem } from './Table'
 
 export class FlightFactory implements GUIFactory<unknown> {
 	private storage
 	private manager
 	private search
-	private currentTableRender: HTMLTableElement | null = null
+	private ticketManager: TicketManager
+	private currentTableRender: HTMLElement | null = null
 
 	constructor() {
 		this.manager = new FlightManager()
 		this.storage = new FlightStorage()
+
+		this.ticketManager = new TicketManager()
+		this.ticketManager.initializeFromStorage(new TicketStorage() as any)
+
 		this.search = new Search(this.onSearchChange.bind(this))
 
 		this.manager.initializeFromStorage(this.storage as any)
@@ -26,7 +33,7 @@ export class FlightFactory implements GUIFactory<unknown> {
 			const BIG_BIG_STRING = Object.values(item)
 				.map(element => {
 					if (element instanceof Date) {
-						return element.toISOString().split('T')[0]
+						return element.toLocaleString('en-GB')
 					}
 
 					return String(element)
@@ -98,16 +105,16 @@ export class FlightFactory implements GUIFactory<unknown> {
 		this.currentTableRender = newTable
 	}
 
-	private onDelete = (item: (string | number)[]) => {
+	private onDelete = (item: TableItem<string | number>[]) => {
 		console.log('onDelete')
 		const id = item[0]
 
-		this.manager.remove(id as string)
+		this.manager.remove(id.content as string)
 		this.rerenderTable()
 		this.storage.setItem(this.manager.items)
 	}
 
-	private onEdit = (item: (string | number | Date)[]) => {
+	private onEdit = (item: TableItem<string | number | Date>[]) => {
 		const [id, fromCity, destination, startDate, endDate, price, seatsCount] =
 			item
 
@@ -120,7 +127,7 @@ export class FlightFactory implements GUIFactory<unknown> {
 				this.manager.edit(
 					String(id),
 					new Flight(
-						String(id),
+						String(id.content),
 						formData.fromCity,
 						formData.destination,
 						new Date(formData.startDate),
@@ -138,24 +145,45 @@ export class FlightFactory implements GUIFactory<unknown> {
 			'update'
 		)
 
-		console.log(startDate, new Date(startDate))
+		console.log(startDate, new Date(startDate.content))
 
-		form.addInput('string', 'From city:', 'fromCity', String(fromCity))
-		form.addInput('string', 'Destination:', 'destination', String(destination))
+		form.addInput('string', 'From city:', 'fromCity', String(fromCity.content))
 		form.addInput(
-			'date',
+			'string',
+			'Destination:',
+			'destination',
+			String(destination.content)
+		)
+
+		form.addInput(
+			'datetime-local',
 			'Start date:',
 			'startDate',
-			new Date(startDate).toISOString().split('T')[0]
+			new Date(
+				new Date(startDate.id).getTime() -
+					new Date(startDate.id).getTimezoneOffset() * 60000
+			)
+				.toISOString()
+				.slice(0, -5)
 		)
 		form.addInput(
-			'date',
+			'datetime-local',
 			'End date:',
 			'endDate',
-			new Date(endDate).toISOString().split('T')[0]
+			new Date(
+				new Date(endDate.id).getTime() -
+					new Date(endDate.id).getTimezoneOffset() * 60000
+			)
+				.toISOString()
+				.slice(0, -5)
 		)
-		form.addInput('number', 'Price:', 'price', String(price))
-		form.addInput('number', 'Seats count:', 'seatsCount', String(seatsCount))
+		form.addInput('number', 'Price:', 'price', String(price.content))
+		form.addInput(
+			'number',
+			'Seats count:',
+			'seatsCount',
+			String(seatsCount.content)
+		)
 
 		form.mount()
 	}
@@ -172,32 +200,58 @@ export class FlightFactory implements GUIFactory<unknown> {
 
 	private createTable(
 		items: Flight[],
-		onDelete: (item: (string | number)[]) => void,
-		onEdit: (item: (string | number)[]) => void
+		onDelete: (item: TableItem<string | number>[]) => void,
+		onEdit: (item: TableItem<string | number>[]) => void
 	) {
 		const HEADS = [
-			'ID',
-			'City from',
-			'Destination',
-			'Start date',
-			'End date',
-			'Price',
-			'Seats count'
+			{ title: 'ID', name: 'id' },
+			{ title: 'City from', name: 'cityFrom' },
+			{ title: 'Destination', name: 'destination' },
+			{ title: 'Start date', name: 'startDate' },
+			{ title: 'End date', name: 'endDate' },
+			{ title: 'Price', name: 'price' },
+			{ title: 'Seats count', name: 'seatsCount' },
+			{ title: 'Free seats', name: 'freeSeatsCount' }
 		]
 
 		const ITEMS = items.map(item => {
+			const ticketsItemsByFlightIdFiltered = this.ticketManager.items.filter(
+				ticket => ticket.flight === item.id
+			)
+
 			return [
-				item.id,
-				item.fromCity,
-				item.destination,
-				item.startDate.toISOString().split('T')[0],
-				item.endDate.toISOString().split('T')[0],
-				item.price,
-				item.seatsCount
+				{ id: 'id', content: item.id, textForSort: item.id },
+				{ id: 'fromCity', content: item.fromCity, textForSort: item.fromCity },
+				{
+					id: 'destination',
+					content: item.destination,
+					textForSort: item.destination
+				},
+				{
+					id: item.startDate.toISOString(),
+					content: item.startDate.toLocaleString('en-GB'),
+					textForSort: item.startDate.toLocaleString('en-GB')
+				},
+				{
+					id: item.endDate.toISOString(),
+					content: item.endDate.toLocaleString('en-GB'),
+					textForSort: item.endDate.toLocaleString('en-GB')
+				},
+				{ id: 'price', content: item.price, textForSort: item.price },
+				{
+					id: 'seatsCount',
+					content: item.seatsCount,
+					textForSort: item.seatsCount
+				},
+				{
+					id: 'seatsCount',
+					content: item.seatsCount - ticketsItemsByFlightIdFiltered.length,
+					textForSort: item.seatsCount - ticketsItemsByFlightIdFiltered.length
+				}
 			]
 		})
 
-		const table = new Table(HEADS, ITEMS, onDelete, onEdit)
+		const table = new Table<string | number>(HEADS, ITEMS, onDelete, onEdit)
 
 		return table.render()
 	}

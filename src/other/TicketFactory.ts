@@ -1,36 +1,59 @@
+import { FlightManager } from '../classes/FlightManager'
+import { PassengerManager } from '../classes/PassengerManager'
 import { Ticket } from '../classes/Ticket'
 import { TicketManager } from '../classes/TicketManager'
+import { FlightStorage } from '../utils/FlightStorage'
+import { PassengerStorage } from '../utils/PassengerStorage'
 import { TicketStorage } from '../utils/TicketStorage'
 import { Button } from './Button'
 import { Form } from './Form'
 import { GUIFactory } from './GUIFactory'
 import { Search } from './Search'
-import { Table } from './Table'
+import { Table, TableItem } from './Table'
 
 export class TicketFactory implements GUIFactory<unknown> {
 	private manager
 	private storage
 	private search
-	private currentTableRender: HTMLTableElement | null = null
+	private currentTableRender: HTMLElement | null = null
+
+	private passengerManager
+	private flightManager
 
 	constructor() {
 		this.manager = new TicketManager()
 		this.storage = new TicketStorage()
 		this.search = new Search(this.onSearchChange.bind(this))
 
+		this.passengerManager = new PassengerManager()
+		this.flightManager = new FlightManager()
+
 		this.manager.initializeFromStorage(this.storage as any)
 	}
 
 	private onSearchChange(text: string) {
 		const itemsForRender = this.manager.items.filter(item => {
-			const BIG_BIG_STRING = Object.values(item)
-				.map(element => {
-					if (element instanceof Date) {
-						return element.toISOString().split('T')[0]
-					}
+			const passengerInfo = this.getPassengerById(item.passenger)
+			const flightInfo = this.getFlightById(item.flight)
 
-					return String(element)
-				})
+			if (!passengerInfo || !flightInfo) return null
+
+			const passengerHTML = [
+				passengerInfo.id,
+				passengerInfo.firstName,
+				passengerInfo.lastName,
+				passengerInfo.passportNumber
+			].join('')
+
+			const flightHTML = [
+				flightInfo.id,
+				flightInfo.startDate.toLocaleString('en-GB'),
+				flightInfo.endDate.toLocaleString('en-GB'),
+				flightInfo.fromCity,
+				flightInfo.destination
+			].join()
+
+			const BIG_BIG_STRING = [item.id, item.position, flightHTML, passengerHTML]
 				.join('')
 				.toLowerCase()
 
@@ -65,8 +88,23 @@ export class TicketFactory implements GUIFactory<unknown> {
 				}
 			)
 
-			form.addInput('text', 'Passenger:', 'passenger')
-			form.addInput('text', 'Flight:', 'flight')
+			const passengerValues = this.passengerManager.items.map(item => {
+				return {
+					title: `${item.id} | ${item.firstName} ${item.lastName} | ${item.passportNumber}`,
+					value: item.id
+				}
+			})
+
+			const flightValues = this.flightManager.items.map(item => {
+				return {
+					title: `${item.id} | ${item.fromCity} => ${item.destination} | ${item.startDate.toLocaleString('en-GB')} => ${item.endDate.toLocaleString('en-GB')}`,
+					value: item.id
+				}
+			})
+
+			form.addSelect('Passenger', 'passenger', passengerValues)
+			form.addSelect('Flight', 'flight', flightValues)
+
 			form.addInput('tel', 'Position:', 'position')
 
 			form.mount()
@@ -92,17 +130,17 @@ export class TicketFactory implements GUIFactory<unknown> {
 		this.currentTableRender = newTable
 	}
 
-	private onDelete = (item: (string | number)[]) => {
+	private onDelete = (item: TableItem<string | number>[]) => {
 		console.log('onDelete')
 		const id = item[0]
 
-		this.manager.remove(id as string)
+		this.manager.remove(id.content as string)
 		this.storage.setItem(this.manager.items)
 
 		this.rerenderTable()
 	}
 
-	private onEdit = (item: (string | number)[]) => {
+	private onEdit = (item: TableItem<string | number>[]) => {
 		const [id, passenger, flight, position] = item
 
 		const form = new Form(
@@ -112,9 +150,9 @@ export class TicketFactory implements GUIFactory<unknown> {
 			},
 			formData => {
 				this.manager.edit(
-					String(id),
+					String(id.content),
 					new Ticket(
-						String(id),
+						String(id.content),
 						formData.passenger,
 						formData.flight,
 						formData.position
@@ -129,9 +167,28 @@ export class TicketFactory implements GUIFactory<unknown> {
 			'update'
 		)
 
-		form.addInput('text', 'Passenger', 'passenger', String(passenger))
-		form.addInput('text', 'Flight', 'flight', String(flight))
-		form.addInput('tel', 'Position', 'position', String(position))
+		const passengerValues = this.passengerManager.items.map(item => {
+			return {
+				title: `${item.id} | ${item.firstName} ${item.lastName} | ${item.passportNumber}`,
+				value: item.id
+			}
+		})
+
+		const flightValues = this.flightManager.items.map(item => {
+			return {
+				title: `${item.id} | ${item.fromCity} => ${item.destination} | ${item.startDate.toLocaleString('en-GB')} => ${item.endDate.toLocaleString('en-GB')}`,
+				value: item.id
+			}
+		})
+
+		form.addSelect(
+			'Passenger',
+			'passenger',
+			passengerValues,
+			String(passenger.id)
+		)
+		form.addSelect('Flight', 'flight', flightValues, String(flight.id))
+		form.addInput('tel', 'Position', 'position', String(position.content))
 
 		form.mount()
 	}
@@ -146,16 +203,99 @@ export class TicketFactory implements GUIFactory<unknown> {
 		return this.currentTableRender
 	}
 
+	private getPassengerById(id: string) {
+		this.passengerManager.initializeFromStorage(new PassengerStorage() as any)
+
+		return this.passengerManager.items.find(item => item.id === id)
+	}
+
+	private getFlightById(id: string) {
+		this.flightManager.initializeFromStorage(new FlightStorage() as any)
+
+		return this.flightManager.items.find(item => item.id === id)
+	}
+
 	private createTable(
 		items: Ticket[],
-		onDelete: (item: (string | number)[]) => void,
-		onEdit: (item: (string | number)[]) => void
+		onDelete: (item: TableItem<string | number>[]) => void,
+		onEdit: (item: TableItem<string | number>[]) => void
 	) {
-		const HEADS = ['ID', 'Passenger', 'Flight', 'Position']
+		const HEADS = [
+			{ title: 'ID', name: 'id' },
+			{ title: 'Passenger', name: 'passenger' },
+			{ title: 'Flight', name: 'flight' },
+			{ title: 'Position', name: 'position' }
+		]
 
-		const ITEMS = items.map(item => {
-			return [item.id, item.passenger, item.flight, item.position]
-		})
+		const ITEMS = items
+			.map(item => {
+				const passengerInfo = this.getPassengerById(item.passenger)
+				const flightInfo = this.getFlightById(item.flight)
+
+				if (!passengerInfo || !flightInfo) return null
+
+				const passengerHTML = `
+					<div class="flex gap-x-2 justify-between px-4 py-1 rounded-lg bg-emerald-200">
+						<div class="flex gap-x-2">
+							<div class="text-emerald-800">${passengerInfo.id}</div>
+							<div class="justify-start flex gap-x-2">
+								<div class="text-slate-800">${passengerInfo.firstName}</div>
+								<div class="text-slate-800">${passengerInfo.lastName}</div>
+							</div>
+						</div>
+						<div class="text-slate-500">${passengerInfo.passportNumber}</div>
+					</div>
+				`
+
+				const flightHTML = `
+					<div class="flex gap-x-4 justify-between px-4 py-1 rounded-lg bg-sky-200">
+						<div class="flex gap-x-2">
+							<div class="text-sky-800">${flightInfo.id}</div>
+							<div class="justify-start flex gap-x-1">
+								<div class="text-slate-800">${flightInfo.startDate.toLocaleString('en-GB')}</div>
+								<div class="text-sky-400">-></div>
+								<div class="text-slate-800">${flightInfo.endDate.toLocaleString('en-GB')}</div>
+							</div>
+						</div>
+						<div class="flex gap-x-1">
+							<div class="text-sky-700">${flightInfo.fromCity}</div>
+							<div class="text-sky-400">-></div>
+							<div class="text-sky-700">${flightInfo.destination}</div>
+						</div>
+					</div>
+				`
+
+				const passengerForSort = [
+					passengerInfo.id,
+					passengerInfo.firstName,
+					passengerInfo.lastName,
+					passengerInfo.passportNumber
+				].join('')
+
+				const flightForSort = [
+					flightInfo.id,
+					flightInfo.startDate.toLocaleString('en-GB'),
+					flightInfo.endDate.toLocaleString('en-GB'),
+					flightInfo.fromCity,
+					flightInfo.destination
+				].join()
+
+				return [
+					{ id: 'id', content: item.id, textForSort: item.id },
+					{
+						id: passengerInfo.id,
+						content: passengerHTML,
+						textForSort: passengerForSort
+					},
+					{
+						id: flightInfo.id,
+						content: flightHTML,
+						textForSort: flightForSort
+					},
+					{ id: 'position', content: item.position, textForSort: item.position }
+				]
+			})
+			.filter(item => item !== null) as TableItem<string>[][]
 
 		const table = new Table(HEADS, ITEMS, onDelete, onEdit)
 

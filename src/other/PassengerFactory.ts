@@ -5,13 +5,13 @@ import { Button } from './Button'
 import { Form } from './Form'
 import { GUIFactory } from './GUIFactory'
 import { Search } from './Search'
-import { Table } from './Table'
+import { Table, TableItem } from './Table'
 
 export class PassengerFactory implements GUIFactory<Passenger> {
 	private manager
 	private storage
 	private search
-	private currentTableRender: HTMLTableElement | null = null
+	private currentTableRender: HTMLElement | null = null
 
 	constructor() {
 		this.manager = new PassengerManager()
@@ -26,7 +26,7 @@ export class PassengerFactory implements GUIFactory<Passenger> {
 			const BIG_BIG_STRING = Object.values(item)
 				.map(element => {
 					if (element instanceof Date) {
-						return element.toISOString().split('T')[0]
+						return element.toLocaleString('en-GB')
 					}
 
 					return String(element)
@@ -96,16 +96,16 @@ export class PassengerFactory implements GUIFactory<Passenger> {
 		this.currentTableRender = newTable
 	}
 
-	private onDelete = (item: (string | number)[]) => {
+	private onDelete = (item: TableItem<string | number>[]) => {
 		console.log('onDelete')
 		const id = item[0]
-		this.manager.remove(id as string)
+		this.manager.remove(id.content as string)
 
 		this.rerenderTable()
 		this.storage.setItem(this.manager.items)
 	}
 
-	private onEdit = (item: (string | number)[]) => {
+	private onEdit = (item: TableItem<string | number>[]) => {
 		const [id, firstName, lastName, phoneNumber, passportNumber, email] = item
 
 		const form = new Form(
@@ -115,9 +115,9 @@ export class PassengerFactory implements GUIFactory<Passenger> {
 			},
 			formData => {
 				this.manager.edit(
-					String(id),
+					String(id.content),
 					new Passenger(
-						String(id),
+						String(id.content),
 						formData.firstName,
 						formData.lastName,
 						formData.phoneNumber,
@@ -134,16 +134,21 @@ export class PassengerFactory implements GUIFactory<Passenger> {
 			'update'
 		)
 
-		form.addInput('text', 'First name:', 'firstName', String(firstName))
-		form.addInput('text', 'Last name:', 'lastName', String(lastName))
-		form.addInput('tel', 'Phone number:', 'phoneNumber', String(phoneNumber))
+		form.addInput('text', 'First name:', 'firstName', String(firstName.content))
+		form.addInput('text', 'Last name:', 'lastName', String(lastName.content))
+		form.addInput(
+			'tel',
+			'Phone number:',
+			'phoneNumber',
+			String(phoneNumber.content)
+		)
 		form.addInput(
 			'number',
 			'Passport number:',
 			'passportNumber',
-			String(passportNumber)
+			String(passportNumber.content)
 		)
-		form.addInput('email', 'Email:', 'email', String(email))
+		form.addInput('email', 'Email:', 'email', String(email.content))
 
 		form.mount()
 	}
@@ -160,30 +165,44 @@ export class PassengerFactory implements GUIFactory<Passenger> {
 
 	private createTable(
 		items: Passenger[],
-		onDelete: (item: (string | number)[]) => void,
-		onEdit: (item: (string | number)[]) => void
+		onDelete: (item: TableItem<string | number>[]) => void,
+		onEdit: (item: TableItem<string | number>[]) => void
 	) {
 		const HEADS = [
-			'ID',
-			'First name',
-			'Last name',
-			'Phone number',
-			'Passport number',
-			'Email'
+			{ title: 'ID', name: 'ID' },
+			{ title: 'First name', name: 'firstName' },
+			{ title: 'Last name', name: 'lastName' },
+			{ title: 'Phone number', name: 'phoneNumber' },
+			{ title: 'Passport number', name: 'passportNumber' },
+			{ title: 'Email', name: 'email' }
 		]
 
 		const ITEMS = items.map(item => {
+			console.log(item.id)
+
 			return [
-				item.id,
-				item.firstName,
-				item.lastName,
-				item.phoneNumber,
-				item.passportNumber,
-				item.email
+				{ id: 'id', content: item.id, textForSort: item.id },
+				{
+					id: 'firstName',
+					content: item.firstName,
+					textForSort: item.firstName
+				},
+				{ id: 'lastName', content: item.lastName, textForSort: item.lastName },
+				{
+					id: 'phoneNumber',
+					content: item.phoneNumber,
+					textForSort: item.phoneNumber
+				},
+				{
+					id: 'passportNumber',
+					content: item.passportNumber,
+					textForSort: item.passportNumber
+				},
+				{ id: 'email', content: item.email, textForSort: item.email }
 			]
 		})
 
-		const table = new Table(HEADS, ITEMS, onDelete, onEdit)
+		const table = new Table<string | number>(HEADS, ITEMS, onDelete, onEdit)
 
 		return table.render()
 	}
